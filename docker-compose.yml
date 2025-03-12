@@ -7,7 +7,7 @@ services:
       - MODS_DIR=${MODS_DIR}
       - PORT=${PORT}
     volumes:
-      - "${MODS_DIR}:/app/minecraft-data"
+      - "${MODS_DIR}:/app/minecraft-data/mods"
     restart: unless-stopped
     ports:
       - "${PORT}:${PORT}"

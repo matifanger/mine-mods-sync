@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Print env variable MODS_DIR
+logger.info(f"MODS_DIR: {os.getenv('MODS_DIR')}")
+
 # Mods directory inside the container
-MODS_DIR = "/app/minecraft-data"
+MODS_DIR = "/app/minecraft-data/mods"
 
 # Ensure the directory exists
 try:
