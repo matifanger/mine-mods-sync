@@ -6,6 +6,4 @@ services:
     environment:
       - MODS_DIR=${MODS_DIR}
       - PORT=${PORT}
-    volumes:
-      - ${MODS_DIR}:${MODS_DIR}
     restart: unless-stopped
