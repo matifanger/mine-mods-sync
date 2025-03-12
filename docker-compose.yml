@@ -3,8 +3,7 @@ version: '3.8'
 services:
   mod-sync:
     build: .
-    ports:
-      - "8000:8000"
     environment:
       - MODS_DIR=${MODS_DIR}
+      - PORT=${PORT}
     restart: unless-stopped
