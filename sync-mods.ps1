@@ -125,32 +125,75 @@ function Sync-Mods {
             
             Write-Host "Found $($localMods.Count) local mods" -ForegroundColor Cyan
             
-            # Prepare multipart form data
-            $boundary = [System.Guid]::NewGuid().ToString()
-            $LF = "`r`n"
-            $bodyLines = New-Object System.Collections.ArrayList
-            
-            foreach ($mod in $localMods) {
-                $fileBytes = [System.IO.File]::ReadAllBytes($mod.FullName)
-                $fileEnc = [System.Text.Encoding]::GetEncoding('ISO-8859-1').GetString($fileBytes)
-                
-                [void]$bodyLines.Add("--$boundary")
-                [void]$bodyLines.Add("Content-Disposition: form-data; name=`"files`"; filename=`"$($mod.Name)`"")
-                [void]$bodyLines.Add("Content-Type: application/java-archive$LF")
-                [void]$bodyLines.Add($fileEnc)
+            # Get server mods first
+            $serverMods = Invoke-RestMethod -Uri "$serverUrl/mods" -Method Get
+            $serverModsDict = @{}
+            foreach ($mod in $serverMods) {
+                $serverModsDict[$mod.name] = $mod
             }
-            
-            [void]$bodyLines.Add("--$boundary--$LF")
-            
-            Write-Host "Syncing with server..." -ForegroundColor Cyan
-            $response = Invoke-RestMethod -Uri "$serverUrl/mods/sync" `
-                -Method Post `
-                -ContentType "multipart/form-data; boundary=$boundary" `
-                -Body ($bodyLines -join $LF)
-            
-            Write-Host "Sync completed!" -ForegroundColor Green
-            Write-Host "Uploaded: $($response.uploaded) mods" -ForegroundColor Green
-            Write-Host "Deleted from server: $($response.deleted) mods" -ForegroundColor Cyan
+
+            # Find which mods are new (for logging)
+            $newMods = $localMods | Where-Object {
+                -not $serverModsDict.ContainsKey($_.Name)
+            }
+
+            if ($newMods.Count -gt 0) {
+                Write-Host "`nFound $($newMods.Count) new mods to upload..." -ForegroundColor Cyan
+            }
+
+            $uploadedCount = 0
+            $failedCount = 0
+            $maxRetries = 3
+
+            foreach ($mod in $localMods) {
+                $retryCount = 0
+                $success = $false
+
+                while (-not $success -and $retryCount -lt $maxRetries) {
+                    try {
+                        Write-Host "Uploading: $($mod.Name)" -ForegroundColor $(if (-not $serverModsDict.ContainsKey($mod.Name)) { "Yellow" } else { "Gray" })
+                        
+                        $fileBytes = [System.IO.File]::ReadAllBytes($mod.FullName)
+                        $fileContent = [System.Text.Encoding]::GetEncoding('ISO-8859-1').GetString($fileBytes)
+                        
+                        $boundary = [System.Guid]::NewGuid().ToString()
+                        $LF = "`r`n"
+                        $bodyLines = New-Object System.Collections.ArrayList
+                        
+                        [void]$bodyLines.Add("--$boundary")
+                        [void]$bodyLines.Add("Content-Disposition: form-data; name=`"file`"; filename=`"$($mod.Name)`"")
+                        [void]$bodyLines.Add("Content-Type: application/java-archive$LF")
+                        [void]$bodyLines.Add($fileContent)
+                        [void]$bodyLines.Add("--$boundary--$LF")
+
+                        $response = Invoke-RestMethod -Uri "$serverUrl/mods/upload" `
+                            -Method Post `
+                            -ContentType "multipart/form-data; boundary=$boundary" `
+                            -Body ($bodyLines -join $LF) `
+                            -TimeoutSec 0
+
+                        $uploadedCount++
+                        $success = $true
+                        Write-Host "  Success!" -ForegroundColor Green
+                    } catch {
+                        $retryCount++
+                        if ($retryCount -lt $maxRetries) {
+                            Write-Host "  Retry $retryCount/$maxRetries..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 2
+                        } else {
+                            Write-Host "  Failed to upload after $maxRetries attempts" -ForegroundColor Red
+                            Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+                            $failedCount++
+                        }
+                    }
+                }
+            }
+
+            Write-Host "`nSync completed!" -ForegroundColor Green
+            Write-Host "Successfully uploaded: $uploadedCount mods" -ForegroundColor Green
+            if ($failedCount -gt 0) {
+                Write-Host "Failed to upload: $failedCount mods" -ForegroundColor Red
+            }
             
         } catch {
             Write-Host "Failed to sync mods with server" -ForegroundColor Red
