@@ -7,12 +7,7 @@ services:
       - MODS_DIR=${MODS_DIR}
       - PORT=${PORT}
     volumes:
-      - ${MODS_DIR}:/app/minecraft-data/mods
+      - ${MODS_DIR}:/app/minecraft-data
     restart: unless-stopped
     ports:
       - "${PORT}:${PORT}"
-
-# Existing volume in another container with minecraft. Remove this if you want to create a new volume.
-volumes:
-  qw84s0wwo40wg8og4o8wocog_mods-dir:
-      external: true

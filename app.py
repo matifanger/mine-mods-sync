@@ -14,7 +14,17 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # Mods directory inside the container
-MODS_DIR = "/app/minecraft-data/mods"
+MODS_DIR = "/app/minecraft-data"
+
+# Ensure the directory exists
+try:
+    os.makedirs(MODS_DIR, exist_ok=True)
+    logger.info(f"Ensured mods_dir directory exists: {MODS_DIR}")
+    # Print the contents of the directory
+    logger.info(f"Contents of mods_dir {MODS_DIR}: {os.listdir(MODS_DIR)}")
+except Exception as e:
+    logger.error(f"Failed to create mods_dir directory: {str(e)}")
+    raise
 
 @app.get("/mods")
 async def list_mods():
