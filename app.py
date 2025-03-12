@@ -13,22 +13,15 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Get mods directory from environment variable
-MODS_DIR = os.getenv('MODS_DIR')
-if not MODS_DIR:
-    raise ValueError("MODS_DIR environment variable is required")
+# Mods directory inside the container
+MODS_DIR = "/app/minecraft-data/mods"
 
-logger.info(f"MODS_DIR set to: {MODS_DIR}")
-
-# If it doesn't exist, create it, throw an error
+# Ensure the directory exists
 try:
-    # Check if the directory exists
-    if not os.path.exists(MODS_DIR):
-        raise FileNotFoundError(f"MODS_DIR does not exist: {MODS_DIR}")
-    # Check if the directory is a directory
-    if not os.path.isdir(MODS_DIR):
-        raise NotADirectoryError(f"MODS_DIR is not a directory: {MODS_DIR}")
+    os.makedirs(MODS_DIR, exist_ok=True)
+    logger.info(f"Ensured mods_dir directory exists: {MODS_DIR}")
 except Exception as e:
+    logger.error(f"Failed to create mods_dir directory: {str(e)}")
     raise
 
 @app.get("/mods")
