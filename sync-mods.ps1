@@ -30,10 +30,14 @@ function Get-SyncConfig {
             if (-not (Get-Member -InputObject $config -Name "isDev")) {
                 Add-Member -InputObject $config -MemberType NoteProperty -Name "isDev" -Value (-not $FORCE_PROD)
             }
+            if (-not (Get-Member -InputObject $config -Name "blacklist")) {
+                Add-Member -InputObject $config -MemberType NoteProperty -Name "blacklist" -Value @()
+            }
         } else {
             $config = [PSCustomObject]@{
                 modsPath = ""
                 isDev = (-not $FORCE_PROD)
+                blacklist = @()
             }
         }
         
@@ -94,12 +98,69 @@ function Download-File {
     }
 }
 
+# Function to manage blacklist
+function Manage-ModBlacklist {
+    param (
+        [string]$modsPath,
+        [array]$currentBlacklist
+    )
+    
+    $mods = Get-ChildItem -Path $modsPath -Filter "*.jar"
+    if ($mods.Count -eq 0) {
+        Write-Host "No mods found in local directory" -ForegroundColor Yellow
+        return $currentBlacklist
+    }
+
+    $options = $mods | ForEach-Object { 
+        @{
+            Name = $_.Name
+            IsBlacklisted = $currentBlacklist -contains $_.Name
+        }
+    }
+    
+    $selection = 0
+    $continue = $true
+
+    while ($continue) {
+        Clear-Host
+        Write-Host "Mod Blacklist Management" -ForegroundColor Cyan
+        Write-Host "Use arrow keys to navigate, Space to toggle blacklist, Enter to save and exit`n" -ForegroundColor Yellow
+
+        for ($i = 0; $i -lt $options.Count; $i++) {
+            $prefix = if ($i -eq $selection) { ">" } else { " " }
+            $status = if ($options[$i].IsBlacklisted) { "[X]" } else { "[ ]" }
+            $color = if ($options[$i].IsBlacklisted) { "Yellow" } else { "White" }
+            Write-Host "$prefix $status $($options[$i].Name)" -ForegroundColor $color
+        }
+
+        $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+        switch ($key.VirtualKeyCode) {
+            38 { # Up arrow
+                $selection = if ($selection -le 0) { $options.Count - 1 } else { $selection - 1 }
+            }
+            40 { # Down arrow
+                $selection = if ($selection -ge ($options.Count - 1)) { 0 } else { $selection + 1 }
+            }
+            32 { # Spacebar
+                $options[$selection].IsBlacklisted = -not $options[$selection].IsBlacklisted
+            }
+            13 { # Enter
+                $continue = $false
+            }
+        }
+    }
+
+    return $options | Where-Object { $_.IsBlacklisted } | ForEach-Object { $_.Name }
+}
+
 # Main sync function
 function Sync-Mods {
     param (
         [string]$modsPath,
         [bool]$isDev,
-        [switch]$upload
+        [switch]$upload,
+        [array]$blacklist = @()
     )
     
     $serverUrl = if ($isDev) { $DEV_URL } else { $PROD_URL }
@@ -146,6 +207,16 @@ function Sync-Mods {
             $maxRetries = 3
 
             foreach ($mod in $localMods) {
+                if ($blacklist -contains $mod.Name) {
+                    Write-Host "Skipping blacklisted mod: $($mod.Name)" -ForegroundColor Yellow
+                    continue
+                }
+
+                if ($serverModsDict.ContainsKey($mod.Name)) {
+                    Write-Host "Skipping existing mod: $($mod.Name)" -ForegroundColor Gray
+                    continue
+                }
+                
                 $retryCount = 0
                 $success = $false
 
@@ -264,7 +335,8 @@ $config = Get-SyncConfig
 Write-Host "`nUsing configuration:" -ForegroundColor Cyan
 Write-Host "Mods Path: $($config.modsPath)" -ForegroundColor Cyan
 Write-Host "Environment: $(if ($config.isDev) { 'Development' } else { 'Production' })" -ForegroundColor Cyan
-Write-Host "Server URL: $(if ($config.isDev) { $DEV_URL } else { $PROD_URL })`n" -ForegroundColor Cyan
+Write-Host "Server URL: $(if ($config.isDev) { $DEV_URL } else { $PROD_URL })" -ForegroundColor Cyan
+Write-Host "Blacklisted mods: $(if ($config.blacklist.Count -gt 0) { $config.blacklist -join ', ' } else { 'None' })`n" -ForegroundColor Cyan
 
 if ($READ_ONLY) {
     Write-Host "Mode: Read-only (download only)" -ForegroundColor Yellow
@@ -274,11 +346,19 @@ if ($READ_ONLY) {
     Write-Host "Select an action:" -ForegroundColor Yellow
     Write-Host "1. Download mods from server"
     Write-Host "2. Upload my mods to server"
-    $choice = Read-Host "`nEnter your choice (1-2)"
+    Write-Host "3. Manage mod blacklist"
+    $choice = Read-Host "`nEnter your choice (1-3)"
 
     switch ($choice) {
         "2" { 
-            Sync-Mods -modsPath $config.modsPath -isDev $config.isDev -upload 
+            Sync-Mods -modsPath $config.modsPath -isDev $config.isDev -upload -blacklist $config.blacklist
+        }
+        "3" {
+            $config.blacklist = Manage-ModBlacklist -modsPath $config.modsPath -currentBlacklist $config.blacklist
+            $config | ConvertTo-Json | Set-Content $configPath -Force
+            Write-Host "`nBlacklist updated and saved!" -ForegroundColor Green
+            Write-Host "Press any key to continue..."
+            $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         }
         default { 
             Sync-Mods -modsPath $config.modsPath -isDev $config.isDev 
