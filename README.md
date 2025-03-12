@@ -2,7 +2,7 @@
 
 Simple tool to keep Minecraft mods in sync between server and clients.
 
-[.github/image.png]
+![Mine Mods Sync](.github/image.png)
 
 ## Environment Variables
 
