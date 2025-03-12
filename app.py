@@ -16,14 +16,6 @@ app = FastAPI()
 # Mods directory inside the container
 MODS_DIR = "/app/minecraft-data/mods"
 
-# Ensure the directory exists
-try:
-    os.makedirs(MODS_DIR, exist_ok=True)
-    logger.info(f"Ensured mods_dir directory exists: {MODS_DIR}")
-except Exception as e:
-    logger.error(f"Failed to create mods_dir directory: {str(e)}")
-    raise
-
 @app.get("/mods")
 async def list_mods():
     """List all mods in the server"""
