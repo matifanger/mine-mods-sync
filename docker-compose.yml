@@ -7,6 +7,7 @@ services:
       - MODS_DIR=${MODS_DIR}
       - PORT=${PORT}
     volumes:
+    # This is my hardcoded volume, you can change it to your own
       - "/data/coolify/services/uw8ok04o4c0w4cw0kc4g08k4/minecraft-data/mods:/app/minecraft-data/mods"
     restart: unless-stopped
     ports:
