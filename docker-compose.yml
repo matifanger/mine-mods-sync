@@ -7,7 +7,7 @@ services:
       - MODS_DIR=${MODS_DIR}
       - PORT=${PORT}
     volumes:
-      - ${MODS_DIR}:/app/minecraft-data
+      - /data/coolify/services/uw8ok04o4c0w4cw0kc4g08k4/minecraft-data/mods:/app/minecraft-data
     restart: unless-stopped
     ports:
       - "${PORT}:${PORT}"
