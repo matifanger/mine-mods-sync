@@ -11,3 +11,8 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT}:${PORT}"
+
+# Existing volume in another container with minecraft. Remove this if you want to create a new volume.
+volumes:
+  qw84s0wwo40wg8og4o8wocog_mods-dir:
+      external: true
