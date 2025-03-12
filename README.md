@@ -40,7 +40,7 @@ $FORCE_PROD = $false # Switch to force production mode (use true when not testin
 
 ### Installation
 
-1. Download `sync-mods.ps1` to your computer
+1. Download `sync-mods.ps1` to your computer. You can share this to friends, so they can update their mods lists automatically with the server.
 
 ```
 2. Run the script:
