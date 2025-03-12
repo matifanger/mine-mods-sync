@@ -1,17 +1,29 @@
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import shutil
 import json
 from typing import List
 from pathlib import Path
 import logging
+import asyncio
+from starlette.background import BackgroundTask
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Print env variable MODS_DIR
 logger.info(f"MODS_DIR: {os.getenv('MODS_DIR')}")
@@ -73,9 +85,18 @@ async def sync_mods(files: List[UploadFile]):
             uploaded_mods.add(file.filename)
             file_path = os.path.join(MODS_DIR, file.filename)
             
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            logger.info(f"Uploaded mod: {file.filename}")
+            # Use chunked upload for better memory handling
+            CHUNK_SIZE = 1024 * 1024  # 1MB chunks
+            try:
+                with open(file_path, "wb") as buffer:
+                    while chunk := await file.read(CHUNK_SIZE):
+                        buffer.write(chunk)
+                logger.info(f"Uploaded mod: {file.filename}")
+            except Exception as e:
+                logger.error(f"Failed to upload {file.filename}: {str(e)}")
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                raise
 
         # Delete mods not in the uploaded list
         for mod in current_mods - uploaded_mods:
@@ -108,4 +129,11 @@ async def upload_mod(file: UploadFile):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv('PORT', 8000)))
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=int(os.getenv('PORT', 8000)),
+        timeout_keep_alive=300,  # Increase keep-alive timeout
+        limit_concurrency=10,    # Limit concurrent connections
+        backlog=100             # Connection queue size
+    )
